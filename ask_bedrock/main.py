@@ -59,13 +59,20 @@ def converse(context: str, debug: bool):
 
 
 @cli.command()
-@click.argument("input")
+@click.argument("input", required=False)
 @click.option("-c", "--context", default="default")
 @click.option("--debug", is_flag=True, default=False)
 @click.option("-t", "--template", type=click.Path(exists=True), help="Path to prompt template file")
 @click.option("-d", "--data", type=click.Path(exists=True), help="Path to template data file (JSON or YAML)")
 @click.option("-p", "--preset", help="Name of preset template-data pair to use")
 def prompt(input: str, context: str, debug: bool, template: str, data: str, preset: str):
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    config = init_config(context)
+
+    # If input is None, use empty string
+    if input is None:
+        input = ""
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     config = init_config(context)
