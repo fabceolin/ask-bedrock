@@ -108,23 +108,30 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
             log_error(f"Template file not found in preset directory: {preset_template}")
             return
             
-        # Look for data file (data.json or data.yaml)
-        preset_data_json = os.path.join(preset_dir, "data.json")
-        preset_data_yaml = os.path.join(preset_dir, "data.yaml")
-        preset_data = None
-        
-        if os.path.exists(preset_data_json):
-            preset_data = preset_data_json
-        elif os.path.exists(preset_data_yaml):
-            preset_data = preset_data_yaml
-        else:
-            log_error(f"Data file not found in preset directory: {preset_dir}")
-            return
+        # Only require data file if we don't have JSON input
+        if not input_json_data:
+            # Look for data file (data.json or data.yaml)
+            preset_data_json = os.path.join(preset_dir, "data.json")
+            preset_data_yaml = os.path.join(preset_dir, "data.yaml")
+            preset_data = None
             
-        # Override template and data with preset values
-        template = preset_template
-        data = preset_data
-        logger.info(f"Using preset '{preset}' with template {template} and data {data}")
+            if os.path.exists(preset_data_json):
+                preset_data = preset_data_json
+            elif os.path.exists(preset_data_yaml):
+                preset_data = preset_data_yaml
+            else:
+                log_error(f"Data file not found in preset directory: {preset_dir}")
+                return
+                
+            # Override template and data with preset values
+            template = preset_template
+            data = preset_data
+        else:
+            # If we have JSON input, we only need the template
+            template = preset_template
+            data = None
+            
+        logger.info(f"Using preset '{preset}' with template {template}")
     
     # Make sure we have both template and data files if one is specified
     if (template and not data) or (data and not template):
