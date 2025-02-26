@@ -167,13 +167,27 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
     if data and not template and not preset:
         logger.info(f"Using data file as input: {data}")
         try:
-            with open(data, 'r') as f:
+            with open(data, 'r', encoding='utf-8') as f:
+                file_content = f.read()
                 if data.endswith('.json'):
-                    input = json.dumps(json.load(f))
+                    try:
+                        parsed_json = json.loads(file_content)
+                        input = json.dumps(parsed_json)  # Re-serialize to ensure proper format
+                        logger.debug(f"Successfully parsed JSON input from file")
+                    except json.JSONDecodeError as e:
+                        log_error(f"Invalid JSON in data file: {e}", e)
+                        return
                 elif data.endswith(('.yaml', '.yml')):
-                    input = yaml.dump(yaml.safe_load(f))
+                    try:
+                        parsed_yaml = yaml.safe_load(file_content)
+                        input = yaml.dump(parsed_yaml)
+                        logger.debug(f"Successfully parsed YAML input from file")
+                    except yaml.YAMLError as e:
+                        log_error(f"Invalid YAML in data file: {e}", e)
+                        return
                 else:
-                    input = f.read()
+                    input = file_content
+                    logger.debug(f"Using raw file content as input")
         except Exception as e:
             log_error(f"Error reading data file: {e}", e)
             return
@@ -208,23 +222,27 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                     input = ""
                 # Otherwise load from data file
                 elif data:
-                    with open(data, 'r') as f:
-                        if data.endswith('.json'):
-                            template_data = json.load(f)
-                        elif data.endswith(('.yaml', '.yml')):
-                            template_data = yaml.safe_load(f)
-                        else:
-                            log_error("Data file must be JSON or YAML")
+                    with open(data, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                        try:
+                            if data.endswith('.json'):
+                                template_data = json.loads(file_content)
+                            elif data.endswith(('.yaml', '.yml')):
+                                template_data = yaml.safe_load(file_content)
+                            else:
+                                template_data = {"text": file_content}
+                        except Exception as e:
+                            log_error(f"Error parsing data file: {e}", e)
                             return
                     logger.info(f"Using template data from file: {data}")
 
                 # Log the template before rendering
-                with open(template, 'r') as f:
+                with open(template, 'r', encoding='utf-8') as f:
                     template_content = f.read()
                     logger.debug(f"Template before rendering:\n{template_content}")
 
                 rendered_input = template_obj.render_template(template_data)
-                logger.debug(f"Template after rendering with JSON data:\n{rendered_input}")
+                logger.debug(f"Template after rendering with data:\n{rendered_input}")
                 input = rendered_input
                 logger.info(f"Template rendered successfully")
             except Exception as e:
