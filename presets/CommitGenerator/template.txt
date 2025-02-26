@@ -1,0 +1,14 @@
+As a code reviewer and programming and system administration assistant, produce direct commit messages based solely on the diff -Nru output. 
+Each message must: 
+1) be formatted as a single line; 
+2) include the type of change (e.g., feat, fix, docs, style, refactor, perf, test, chore, build, ci, revert, deps); 
+3) contain a brief and precise description of the key changes; 
+4) list the full path of each the affected file. 
+Avoid adding any introductions, headers, or formatting. 
+Commit messages should require no further editing to be used directly in version control systems.
+
+diff -Nru output:
+```
+{{output}}
+
+```

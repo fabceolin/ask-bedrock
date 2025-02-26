@@ -29,3 +29,7 @@ ask-bedrock = "ask_bedrock.main:cli"
 [tool.setuptools-git-versioning]
 enabled = true
 dev_template = "{tag}.post{timestamp}"
+
+[tool.setuptools]
+include-package-data = true
+

@@ -65,15 +65,25 @@ def converse(context: str, debug: bool):
 @click.option("-t", "--template", type=click.Path(exists=True), help="Path to prompt template file")
 @click.option("-d", "--data", type=click.Path(exists=True), help="Path to template data file (JSON or YAML)")
 @click.option("-p", "--preset", help="Name of preset template-data pair to use")
-@click.option("-j", "--json-data", help="JSON string with template data (overrides data file)")
-def prompt(input: str, context: str, debug: bool, template: str, data: str, preset: str, json_data: str):
+def prompt(input: str, context: str, debug: bool, template: str, data: str, preset: str):
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     config = init_config(context)
-
+    
     # If input is None, use empty string
     if input is None:
         input = ""
+        
+    # Check if input is valid JSON (for using input as data)
+    input_json_data = None
+    if input and input.strip().startswith('{') and input.strip().endswith('}'):
+        try:
+            input_json_data = json.loads(input)
+            logger.debug(f"Input appears to be JSON data: {input_json_data}")
+        except json.JSONDecodeError:
+            # Not valid JSON, will use as normal input
+            logger.debug("Input looks like JSON but could not be parsed as valid JSON")
+            pass
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     config = init_config(context)
@@ -85,24 +95,24 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
         if not os.path.exists(presets_dir):
             os.makedirs(presets_dir)
             logger.warning(f"Presets directory created at {presets_dir}")
-
+            
         # Check for the preset directory
         preset_dir = os.path.join(presets_dir, preset)
         if not os.path.exists(preset_dir):
             log_error(f"Preset directory not found: {preset_dir}")
             return
-
+            
         # Look for template file (template.txt)
         preset_template = os.path.join(preset_dir, "template.txt")
         if not os.path.exists(preset_template):
             log_error(f"Template file not found in preset directory: {preset_template}")
             return
-
+            
         # Look for data file (data.json or data.yaml)
         preset_data_json = os.path.join(preset_dir, "data.json")
         preset_data_yaml = os.path.join(preset_dir, "data.yaml")
         preset_data = None
-
+        
         if os.path.exists(preset_data_json):
             preset_data = preset_data_json
         elif os.path.exists(preset_data_yaml):
@@ -110,12 +120,12 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
         else:
             log_error(f"Data file not found in preset directory: {preset_dir}")
             return
-
+            
         # Override template and data with preset values
         template = preset_template
         data = preset_data
         logger.info(f"Using preset '{preset}' with template {template} and data {data}")
-
+    
     # Make sure we have both template and data files if one is specified
     if (template and not data) or (data and not template):
         log_error("Both template and data files must be specified together")
@@ -139,18 +149,16 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                     from_cache=False,
                     from_examples=False
                 )
-
-                # Load template data from file or JSON string
+                
+                # Load template data from file or input JSON
                 template_data = {}
-
-                # Check if JSON data is provided directly (highest priority)
-                if json_data:
-                    try:
-                        template_data = json.loads(json_data)
-                        logger.info("Using template data from JSON argument")
-                    except json.JSONDecodeError as e:
-                        log_error(f"Invalid JSON data: {e}", e)
-                        return
+                
+                # Check if input is JSON (highest priority)
+                if input_json_data:
+                    template_data = input_json_data
+                    logger.info("Using template data from input JSON")
+                    # Clear input since we're using it as data
+                    input = ""
                 # Otherwise load from data file
                 elif data:
                     with open(data, 'r') as f:
@@ -162,7 +170,7 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                             log_error("Data file must be JSON or YAML")
                             return
                     logger.info(f"Using template data from file: {data}")
-
+                
                 rendered_input = template_obj.render_template(template_data)
                 logger.debug(f"Rendered prompt: {rendered_input}")
                 input = rendered_input
@@ -170,7 +178,7 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
             except Exception as e:
                 log_error(f"Error rendering template: {e}", e)
                 return
-
+        
         response = llm.invoke(input=input)
     except Exception as e:
         log_error("Error while generating response", e)
@@ -190,29 +198,29 @@ def save_preset(name: str, template: str, data: str):
     presets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "presets")
     if not os.path.exists(presets_dir):
         os.makedirs(presets_dir)
-
+        
     # Create directory for this preset
     preset_dir = os.path.join(presets_dir, name)
     if not os.path.exists(preset_dir):
         os.makedirs(preset_dir)
-
+    
     # Target paths for the preset files
     preset_template = os.path.join(preset_dir, "template.txt")
-
+    
     # Determine data file extension
     data_ext = "json" if data.endswith(".json") else "yaml"
     preset_data = os.path.join(preset_dir, f"data.{data_ext}")
-
+    
     # Copy the files
     import shutil
     shutil.copy2(template, preset_template)
     shutil.copy2(data, preset_data)
-
+    
     logger.info(f"Preset '{name}' saved successfully")
     logger.info(f"Template: {preset_template}")
     logger.info(f"Data: {preset_data}")
-
-
+    
+    
 @cli.command()
 def list_presets():
     """List all available presets"""
@@ -220,25 +228,25 @@ def list_presets():
     if not os.path.exists(presets_dir):
         logger.info("No presets directory found. Use 'save_preset' to create presets.")
         return
-
+        
     # Find all preset directories
-    preset_dirs = [d for d in os.listdir(presets_dir)
+    preset_dirs = [d for d in os.listdir(presets_dir) 
                  if os.path.isdir(os.path.join(presets_dir, d))]
-
+    
     if not preset_dirs:
         logger.info("No presets found")
         return
-
+        
     logger.info("Available presets:")
     for preset_name in sorted(preset_dirs):
         preset_dir = os.path.join(presets_dir, preset_name)
         template_path = os.path.join(preset_dir, "template.txt")
         data_json_path = os.path.join(preset_dir, "data.json")
         data_yaml_path = os.path.join(preset_dir, "data.yaml")
-
+        
         has_template = os.path.exists(template_path)
         has_data = os.path.exists(data_json_path) or os.path.exists(data_yaml_path)
-
+        
         if has_template and has_data:
             logger.info(f"  - {preset_name}")
         else:
