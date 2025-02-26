@@ -35,3 +35,6 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["ask_bedrock", "presets"]
+
+[tool.setuptools.package-data]
+ask_bedrock = ["presets/*"]
