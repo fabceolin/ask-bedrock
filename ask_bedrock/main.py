@@ -65,7 +65,8 @@ def converse(context: str, debug: bool):
 @click.option("-t", "--template", type=click.Path(exists=True), help="Path to prompt template file")
 @click.option("-d", "--data", type=click.Path(exists=True), help="Path to template data file (JSON or YAML)")
 @click.option("-p", "--preset", help="Name of preset template-data pair to use")
-def prompt(input: str, context: str, debug: bool, template: str, data: str, preset: str):
+@click.option("-j", "--json-data", help="JSON string with template data (overrides data file)")
+def prompt(input: str, context: str, debug: bool, template: str, data: str, preset: str, json_data: str):
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     config = init_config(context)
@@ -139,16 +140,28 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                     from_examples=False
                 )
 
-                # Load template data
+                # Load template data from file or JSON string
                 template_data = {}
-                with open(data, 'r') as f:
-                    if data.endswith('.json'):
-                        template_data = json.load(f)
-                    elif data.endswith(('.yaml', '.yml')):
-                        template_data = yaml.safe_load(f)
-                    else:
-                        log_error("Data file must be JSON or YAML")
+
+                # Check if JSON data is provided directly (highest priority)
+                if json_data:
+                    try:
+                        template_data = json.loads(json_data)
+                        logger.info("Using template data from JSON argument")
+                    except json.JSONDecodeError as e:
+                        log_error(f"Invalid JSON data: {e}", e)
                         return
+                # Otherwise load from data file
+                elif data:
+                    with open(data, 'r') as f:
+                        if data.endswith('.json'):
+                            template_data = json.load(f)
+                        elif data.endswith(('.yaml', '.yml')):
+                            template_data = yaml.safe_load(f)
+                        else:
+                            log_error("Data file must be JSON or YAML")
+                            return
+                    logger.info(f"Using template data from file: {data}")
 
                 rendered_input = template_obj.render_template(template_data)
                 logger.debug(f"Rendered prompt: {rendered_input}")
