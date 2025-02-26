@@ -13,6 +13,9 @@ from langchain.chains.conversation.base import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain_aws import ChatBedrock as BedrockChat
 
+# Import prompt_poet Template class correctly
+from prompt_poet.template import Template
+
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logger.addHandler(handler := logging.StreamHandler())
@@ -59,7 +62,9 @@ def converse(context: str, debug: bool):
 @click.argument("input")
 @click.option("-c", "--context", default="default")
 @click.option("--debug", is_flag=True, default=False)
-def prompt(input: str, context: str, debug: bool):
+@click.option("-t", "--template", type=click.Path(exists=True), help="Path to prompt template file")
+@click.option("-d", "--data", type=click.Path(exists=True), help="Path to template data file (JSON or YAML)")
+def prompt(input: str, context: str, debug: bool, template: str, data: str):
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     config = init_config(context)
@@ -71,9 +76,45 @@ def prompt(input: str, context: str, debug: bool):
         return
 
     try:
+        # Process template and data if provided
+        if template:
+            # Load template content
+            with open(template, 'r') as f:
+                template_content = f.read()
+
+            # Load template data
+            template_data = {}
+            if data:
+                with open(data, 'r') as f:
+                    if data.endswith('.json'):
+                        template_data = json.load(f)
+                    elif data.endswith(('.yaml', '.yml')):
+                        template_data = yaml.safe_load(f)
+                    else:
+                        log_error("Data file must be JSON or YAML")
+                        return
+
+            # Use prompt-poet Template for rendering
+            try:
+                # We need to decide whether to use raw_template OR template_path, not both
+                # Let's use template_path since that might work better with includes
+                template_obj = Template(
+                    template_path=template,  # Just use the template file path
+                    from_cache=False,
+                    from_examples=False
+                )
+                rendered_input = template_obj.render_template(template_data)
+                logger.debug(f"Rendered prompt: {rendered_input}")
+                input = rendered_input
+                logger.info(f"Template rendered successfully")
+            except Exception as e:
+                log_error(f"Error rendering template: {e}", e)
+                return
+
         response = llm.invoke(input=input)
     except Exception as e:
         log_error("Error while generating response", e)
+        return
 
     if not llm.streaming:
         click.secho(response, fg="yellow")
