@@ -167,7 +167,8 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
     if data and not template and not preset:
         logger.info(f"Using data file as input: {data}")
         try:
-            with open(data, 'r', encoding='utf-8') as f:
+            # Use utf-8-sig to handle UTF-8 with BOM (common on Windows)
+            with open(data, 'r', encoding='utf-8-sig') as f:
                 file_content = f.read()
                 if data.endswith('.json'):
                     try:
@@ -222,22 +223,27 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                     input = ""
                 # Otherwise load from data file
                 elif data:
-                    with open(data, 'r', encoding='utf-8') as f:
+                    # Use utf-8-sig to handle UTF-8 with BOM (common on Windows)
+                    with open(data, 'r', encoding='utf-8-sig') as f:
                         file_content = f.read()
                         try:
                             if data.endswith('.json'):
                                 template_data = json.loads(file_content)
+                                logger.debug(f"Successfully loaded JSON data from file")
                             elif data.endswith(('.yaml', '.yml')):
                                 template_data = yaml.safe_load(file_content)
+                                logger.debug(f"Successfully loaded YAML data from file")
                             else:
                                 template_data = {"text": file_content}
+                                logger.debug(f"Using raw file content as template data")
                         except Exception as e:
                             log_error(f"Error parsing data file: {e}", e)
                             return
                     logger.info(f"Using template data from file: {data}")
 
                 # Log the template before rendering
-                with open(template, 'r', encoding='utf-8') as f:
+                # Use utf-8-sig for template file too, just to be safe
+                with open(template, 'r', encoding='utf-8-sig') as f:
                     template_content = f.read()
                     logger.debug(f"Template before rendering:\n{template_content}")
 
@@ -370,7 +376,7 @@ def start_conversation(config: dict):
 def get_config(context: str) -> dict:
     if not os.path.exists(config_file_path):
         return None
-    with open(config_file_path, "r", encoding="utf-8") as f:
+    with open(config_file_path, "r", encoding="utf-8-sig") as f:
         config = yaml.safe_load(f)
     if not "contexts" in config:
         return None
@@ -382,7 +388,7 @@ def get_config(context: str) -> dict:
 # Stores a config for a given context physically
 def put_config(context: str, new_config: dict):
     if os.path.exists(config_file_path):
-        with open(config_file_path, "r", encoding="utf-8") as f:
+        with open(config_file_path, "r", encoding="utf-8-sig") as f:
             current_config_file = yaml.safe_load(f)
     else:
         os.makedirs(os.path.dirname(config_file_path), exist_ok=True)
