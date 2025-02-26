@@ -1,1 +1,1 @@
-ask-bedrock prompt -p CommitGenerator -j "$(git diff | jq -R --slurp '{ "output": . }')"
+ask-bedrock prompt -p CommitGenerator "$(git diff | jq -R --slurp '{ "output": . }')"
