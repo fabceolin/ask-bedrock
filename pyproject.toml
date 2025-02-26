@@ -32,9 +32,3 @@ dev_template = "{tag}.post{timestamp}"
 
 [tool.setuptools]
 include-package-data = true
-
-[tool.setuptools.packages.find]
-include = ["ask_bedrock", "presets", "presets.CommitGenerator"]
-
-[tool.setuptools.package-data]
-presets = ["**/*"]
