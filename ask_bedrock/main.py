@@ -17,10 +17,16 @@ from langchain_aws import ChatBedrock as BedrockChat
 from prompt_poet.template import Template
 
 logger = logging.getLogger(__name__)
+
 if not logger.handlers:
     logger.addHandler(handler := logging.StreamHandler())
     handler.setFormatter(logging.Formatter("%(message)s"))
     logger.propagate = False
+
+# Add this after the logger initialization
+file_handler = logging.FileHandler('app.log')
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(file_handler)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -80,6 +86,10 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
         try:
             input_json_data = json.loads(input)
             logger.debug(f"Input appears to be JSON data: {input_json_data}")
+            # Only treat JSON input as template data if a template or preset is specified
+            if not (template or preset):
+                logger.debug("No template or preset specified, using JSON input as direct input to model")
+                input_json_data = None  # Don't treat as template data
         except json.JSONDecodeError:
             # Not valid JSON, will use as normal input
             logger.debug("Input looks like JSON but could not be parsed as valid JSON")
@@ -133,8 +143,11 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
             
         logger.info(f"Using preset '{preset}' with template {template}")
     
-    # Make sure we have both template and data files if one is specified
-    if (template and not data) or (data and not template):
+    # Make sure we have both template and data files if one is specified (except with JSON input)
+    if (template and not data) and not input_json_data:
+        log_error("Both template and data files must be specified together")
+        return
+    if (data and not template):
         log_error("Both template and data files must be specified together")
         return
 
@@ -146,7 +159,7 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
 
     try:
         # Process template and data if provided
-        if template and data:
+        if template:
             # Use prompt-poet Template for rendering
             try:
                 # We need to decide whether to use raw_template OR template_path, not both
@@ -163,7 +176,7 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                 # Check if input is JSON (highest priority)
                 if input_json_data:
                     template_data = input_json_data
-                    logger.info("Using template data from input JSON")
+                    logger.debug(f"Using template data from input JSON: {json.dumps(input_json_data)}")
                     # Clear input since we're using it as data
                     input = ""
                 # Otherwise load from data file
@@ -178,8 +191,13 @@ def prompt(input: str, context: str, debug: bool, template: str, data: str, pres
                             return
                     logger.info(f"Using template data from file: {data}")
                 
+                # Log the template before rendering
+                with open(template, 'r') as f:
+                    template_content = f.read()
+                    logger.debug(f"Template before rendering:\n{template_content}")
+                
                 rendered_input = template_obj.render_template(template_data)
-                logger.debug(f"Rendered prompt: {rendered_input}")
+                logger.debug(f"Template after rendering with JSON data:\n{rendered_input}")
                 input = rendered_input
                 logger.info(f"Template rendered successfully")
             except Exception as e:
